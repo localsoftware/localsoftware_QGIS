@@ -206,11 +206,13 @@ class LocalSoftware:
         geojson_ref = db.collection('geojsons').document(layer_name)
         features_ref = geojson_ref.collection('features').stream()
 
-        layer = QgsVectorLayer("Point", layer_name, "memory")
+        next_geom = next(features_ref).to_dict()
+        geometry_type = next_geom['geometry']['type']
+        layer = QgsVectorLayer(geometry_type, layer_name, "memory")
         pr = layer.dataProvider()
 
         # add fields
-        fields = QgsJsonUtils.stringToFields(json.dumps(next(features_ref).to_dict()))
+        fields = QgsJsonUtils.stringToFields(json.dumps(next_geom))
         pr.addAttributes(fields)
         layer.updateFields() # tell the vector layer to fetch changes from the provider
 
