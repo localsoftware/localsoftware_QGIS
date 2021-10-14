@@ -26,7 +26,7 @@ from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction, QFileDialog
 from qgis.core import QgsProject, QgsMessageLog
 from qgis.core import QgsVectorLayer, QgsProject, QgsJsonUtils
-
+from qgis.utils import iface
 
 
 # Initialize Qt resources from file resources.py
@@ -196,19 +196,27 @@ class LocalSoftware:
     def firebase_connect(self, credential):
 
         if not firebase_admin._apps:
-            cred = credentials.Certificate(credential) 
-            default_app = firebase_admin.initialize_app(cred)
+            try: 
+                cred = credentials.Certificate(credential) 
+                default_app = firebase_admin.initialize_app(cred)
+            except: iface.messageBar().pushMessage("Error", "The credentials that you provided are invalid. Make sure you have the right credential file", level=2)
 
+            
         return firestore.client()
 
     def load_features(self, db):
         layer_name = self.dlg.layer_name_label.text()
         geojson_ref = db.collection('geojsons').document(layer_name)
+
+        if geojson_ref.get().to_dict() == None: 
+            iface.messageBar().pushMessage("Error", "We couldn't find your layer, or your layer is empty. Make sure you are using the right layer name", level=2)
+
         features_ref = geojson_ref.collection('features').stream()
 
         next_geom = next(features_ref).to_dict()
         geometry_type = next_geom['geometry']['type']
-        layer = QgsVectorLayer(geometry_type, layer_name, "memory")
+        try: layer = QgsVectorLayer(geometry_type, layer_name, "memory")
+        except: iface.messageBar().pushMessage("Error", "Your layer's geometry is invalid. Make sure your layer's geoemetries are vectors", level=2)
         pr = layer.dataProvider()
 
         # add fields
@@ -221,23 +229,26 @@ class LocalSoftware:
         for feature in features_ref:
             feature_dict = feature.to_dict()
 
-            # Create QGIS feature from a geoJSON object
-            qgis_feature = QgsJsonUtils.stringToFeatureList(json.dumps(feature_dict))[0]
+            try:
+                # Create QGIS feature from a geoJSON object
+                qgis_feature = QgsJsonUtils.stringToFeatureList(json.dumps(feature_dict))[0]
 
-            # Set the fields of the feature to the layer's fields
-            qgis_feature.setFields(fields)
-            # Set the properties of each feature by looping through all the keys of the JSON properties
-            for key in feature_dict['properties']:
+                # Set the fields of the feature to the layer's fields
+                qgis_feature.setFields(fields)
+                # Set the properties of each feature by looping through all the keys of the JSON properties
+                for key in feature_dict['properties']:
                 #    print(key, feature_dict['properties'][key])
-                qgis_feature.setAttribute(key, feature_dict['properties'][key])
-                # QgsMessageLog.logMessage(key, 'local_software')
-        
-            # Add the features to the layer
-            pr.addFeatures([qgis_feature])
-            layer.commitChanges()
+                    qgis_feature.setAttribute(key, feature_dict['properties'][key])
+                
+                # Add the features to the layer
+                pr.addFeatures([qgis_feature])
+                layer.commitChanges()
+            except:
+                iface.messageBar().pushMessage("Error", "Your layer contains some invalid geometries", level=2)
 
         # Show in project
         QgsProject.instance().addMapLayer(layer)
+        iface.messageBar().pushMessage("Success", "Your layer has been added to the model!", level=3)
 
     def run(self):
         """Run method that performs all the real work"""
