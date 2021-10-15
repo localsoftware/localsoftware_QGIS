@@ -214,6 +214,8 @@ class LocalSoftware:
         features_ref = geojson_ref.collection('features').stream()
 
         next_geom = next(features_ref).to_dict()
+        next_geom['geometry'] = json.loads(next_geom['geometry'])
+
         geometry_type = next_geom['geometry']['type']
         try: layer = QgsVectorLayer(geometry_type, layer_name, "memory")
         except: iface.messageBar().pushMessage("Error", "Your layer's geometry is invalid. Make sure your layer's geoemetries are vectors", level=2)
@@ -228,6 +230,7 @@ class LocalSoftware:
         layer.startEditing()
         for feature in features_ref:
             feature_dict = feature.to_dict()
+            feature_dict['geometry'] = json.loads(feature_dict['geometry'])
 
             try:
                 # Create QGIS feature from a geoJSON object
