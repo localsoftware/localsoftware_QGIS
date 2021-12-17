@@ -21,12 +21,19 @@
  *                                                                         *
  ***************************************************************************/
 """
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
+from pathlib import Path
+import json
+import glob
+from collections import OrderedDict
+
+from qgis.core import QgsVectorLayer, QgsProject, QgsJsonUtils, QgsFeature, QgsField, QgsCoordinateTransform, QgsFeatureRequest, QgsCoordinateReferenceSystem, QgsGeometry, QgsMessageLog
+from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QVariant
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction, QFileDialog
-from qgis.core import QgsProject, QgsMessageLog
-from qgis.core import QgsVectorLayer, QgsProject, QgsJsonUtils
 from qgis.utils import iface
+import processing
+# from processing.core.Processing import Processing
+# Processing.initialize()
 
 
 # Initialize Qt resources from file resources.py
@@ -34,7 +41,6 @@ from .resources import *
 # Import the code for the dialog
 from .local_software_dialog import LocalSoftwareDialog
 import os.path
-import json
 
 # Import Firebase libraries
 import firebase_admin
@@ -188,70 +194,293 @@ class LocalSoftware:
                 action)
             self.iface.removeToolBarIcon(action)
 
-    def select_credential_file(self):
-        filename, _filter = QFileDialog.getOpenFileName(
-            self.dlg, "Select you Firebase Credential JSON file ","", '*.json')
-        self.dlg.credential_path.setText(filename)
+    def reproject_layer(self, layer, epsg):
+        parameter = {'INPUT': layer, 'TARGET_CRS': epsg.authid(),
+                        'OUTPUT': 'memory:Reprojected'}
 
-    def firebase_connect(self, credential):
+        new_layer = processing.run('native:reprojectlayer', parameter)['OUTPUT']
+        new_layer.setName(layer.name())
+        return new_layer
+        
+    def create_buffer(self, site, crs, radius):
+        transformContext = QgsProject.instance().transformContext()
+        epsg = QgsCoordinateReferenceSystem(3857)
+        xform = QgsCoordinateTransform(crs, epsg, transformContext)
+        geom2 = QgsGeometry(site.geometry())
+        geom2.transform(xform)
+        old_buffer = geom2.buffer(radius, 5)
+        
+        xform = QgsCoordinateTransform(epsg, crs, transformContext)
+        buffer = QgsGeometry(old_buffer)
+        buffer.transform(xform)
 
-        if not firebase_admin._apps:
-            try: 
-                cred = credentials.Certificate(credential) 
-                default_app = firebase_admin.initialize_app(cred)
-            except: iface.messageBar().pushMessage("Error", "The credentials that you provided are invalid. Make sure you have the right credential file", level=2)
+        return buffer    
+        
+    def spatial_query(self, site_geom, other_layer):
+        # parameters = { 'INPUT' : layers[0], 
+        #            'INTERSECT' : layers[1], 
+        #            'METHOD' : 0, 
+        #            'PREDICATE' : [0] }
 
+        # processing.run('qgis:selectbylocation', parameters )
+
+        queried_features = []
+        #performance boost: get point features by poly bounding box first
+        sel_features = other_layer.getFeatures(QgsFeatureRequest().setFilterRect(site_geom.boundingBox()))
+        for feat in sel_features:
+            #iterate preselected point features and perform exact check with current polygon
+            if feat.geometry().intersects(site_geom):
+                queried_features.append(feat)
+        return queried_features
+
+    def features_to_json(self, layer, site_features, fields, epsg): 
+        features = []
+        for i in site_features:
+            curr_props = []
+            for ix, val in enumerate(i.attributes()):
+                if ix < len(fields):
+                    curr_props.append((fields[ix], str(val)))
+            prop_dict = OrderedDict(curr_props)
+            features.append(
+                {
+                    "type": "Feature",
+                    "properties": prop_dict,
+                    "geometry": json.loads(i.geometry().asJson())
+                }
+            )
+
+        return features
+
+    def export_layer(self, layer_name, site_features, site_epsg, site_name='site'):
+        if isinstance(layer_name, str):
+            layer = QgsProject.instance().mapLayersByName(layer_name)[0]
+            if layer_name == site_name: site = True
+            else: site = False
+        else:
+            layer = layer_name
+            if layer_name.name() == site_name: site = True
+            else: site = False
+
+        # Get the provider
+        prov = layer.dataProvider()
+        # Get fields names with the order
+        fields = [field.name() for field in prov.fields()]
+        feats = self.features_to_json(layer, site_features, fields, site_epsg)
+
+        if len(feats) > 0:
+            # loop to generate GeoJSON looping layer features properties and getting geometry as GeoJSON geometry format
+            geojson = {
+                "type": "FeatureCollection",
+                "features": feats,
+                "crs": {
+                    "properties": {
+                        "name": site_epsg.authid()
+                    },
+                    "type": "name"
+                }
+            }
+        else: geojson = None 
+
+        return site, geojson
+        
+    def site_json(self, layer, is_site, geojson):
+        return {
+                "name": layer,
+                "site": is_site,
+                "otherSite": False,
+                "contents": geojson,
+                "type": "Layer"
+            }
+
+    def export_site(self, layers, data_folder, site_id):
+        export_geojson = {
+            "layers": layers,
+            "type": "LayerCollection"
+        }
+        file_name = str(site_id) + '.json'
+        # If you want to write to an external file
+        with open(data_folder+'/'+file_name, 'w') as outfile:
+            # print(export_geojson)
+            json.dump(export_geojson, outfile)
+
+    def make_sites(self, site_name, data_folder, radius):
+        site_layer = QgsProject.instance().mapLayersByName(site_name)[0]
+
+        site_epsg = site_layer.crs()
+        other_layers = [layer for layer_name, layer in QgsProject.instance().mapLayers().items() if layer.name() != site_name]
+
+        reprojected_layers = []
+        for other_layer in other_layers:
+            if site_epsg.authid() != other_layer.crs().authid():
+                reprojected_layers.append(self.reproject_layer(other_layer, site_epsg))
+            else: reprojected_layers.append(other_layer)
+
+        for site in site_layer.getFeatures():
+            new_layers = []
+            site_id = site.id()
             
-        return firestore.client()
+            is_site, geojson = self.export_layer(site_layer, [site], site_epsg, site_name)
+            new_layers.append(self.site_json('site', is_site, geojson))
 
-    def load_features(self, db):
-        layer_name = self.dlg.layer_name_label.text()
-        geojson_ref = db.collection('geojsons').document(layer_name)
+            site_buffer = self.create_buffer(site, site_epsg, radius)
 
-        if geojson_ref.get().to_dict() == None: 
-            iface.messageBar().pushMessage("Error", "We couldn't find your layer, or your layer is empty. Make sure you are using the right layer name", level=2)
+            # Now query new layers, and add them to the site geoJSON
+            for other_layer in reprojected_layers:
+                layer_features = self.spatial_query(site_buffer, other_layer)
+                is_site, geojson = self.export_layer(other_layer, layer_features, site_epsg, site_name)
+                if geojson != None:
+                    new_layers.append(self.site_json(other_layer.name(), is_site, geojson))
 
-        features_ref = geojson_ref.collection('features').stream()
+            # export the site as a geoJSON 
+            self.export_site(new_layers, data_folder, site_id)
+        iface.messageBar().pushMessage("Success", "Your sites packages have been created!", level=3)
 
-        next_geom = next(features_ref).to_dict()
-        next_geom['geometry'] = json.loads(next_geom['geometry'])
+    def batch_export(self, data_folder, radius=10):
+        # Load the layers that were originally imported
+        rel_layer = QgsProject.instance().mapLayersByName('relationship_layer')[0]
+        idx = rel_layer.fields().indexOf('layerName')
+        layer_names = rel_layer.uniqueValues(idx)
 
-        geometry_type = next_geom['geometry']['type']
-        try: layer = QgsVectorLayer(geometry_type, layer_name, "memory")
-        except: iface.messageBar().pushMessage("Error", "Your layer's geometry is invalid. Make sure your layer's geoemetries are vectors", level=2)
-        pr = layer.dataProvider()
+        layers = QgsProject.instance().mapLayers()
+        site_layers = [QgsProject.instance().mapLayersByName(layer_name)[0] for layer_name in layer_names]
+        site_epsg = [layer.crs() for layer in layers.values() if layer.name() == 'site'][0]
+        site_epsg = QgsCoordinateReferenceSystem("EPSG:3857")
+
+        other_layers = [layer for layer in list(set(layers.values())-set(site_layers)) if layer.name() != 'relationship_layer']
+        reprojected_layers = []
+        for other_layer in other_layers:
+            if site_epsg.authid() != other_layer.crs().authid():
+                reprojected_layers.append(self.reproject_layer(other_layer, site_epsg))
+            else: reprojected_layers.append(other_layer)
+
+        site_layer = QgsProject.instance().mapLayersByName('site')[0]
+        for site in site_layer.getFeatures():
+            new_layers = []
+            site_id = site.id()
+            is_site, geojson = self.export_layer(site_layer, [site], site_epsg)
+            new_layers.append(self.site_json('site', is_site, geojson))
+
+            for layer in layer_names: 
+                if layer != 'site':
+                    expression = '"siteID" = ' + str(site_id) + ' and "layerName" = \'' + layer + '\''
+                    site_features = rel_layer.getFeatures(expression)
+                    selected_ids = [i.attributes()[2] for i in site_features]
+
+                    layer_features = QgsProject.instance().mapLayersByName(layer)[0].getFeatures(selected_ids)
+                    is_site, geojson = self.export_layer(layer, layer_features, site_epsg)
+                    new_layers.append(self.site_json(layer, is_site, geojson))
+
+            if len(reprojected_layers) > 0:
+                # Create a buffer for the site query 
+                site_buffer = self.create_buffer(site, site_epsg, radius)
+
+                # Now query new layers, and add them to the site geoJSON
+                for other_layer in reprojected_layers:
+                    layer_features = self.spatial_query(site_buffer, other_layer)
+                    is_site, geojson = self.export_layer(other_layer, layer_features, site_epsg)
+                    if geojson != None:
+                        new_layers.append(self.site_json(other_layer.name(), is_site, geojson))
+
+            # export the site as a geoJSON 
+            self.export_site(new_layers, data_folder, site_id)
+        iface.messageBar().pushMessage("Success", "Your layers have been exported to as new site packages!", level=3)
+
+    def batch_import(self, file_list):
+        # Before I start looping through all the files, I create an empty layer for the relationships to add
+        relationship_layer = QgsVectorLayer('Polygon', 'relationship_layer', "memory")
+        relationship_layer_pr = relationship_layer.dataProvider()
 
         # add fields
-        fields = QgsJsonUtils.stringToFields(json.dumps(next_geom))
-        pr.addAttributes(fields)
-        layer.updateFields() # tell the vector layer to fetch changes from the provider
+        relationship_layer_pr.addAttributes([QgsField("siteId", QVariant.Int), QgsField("layerName",  QVariant.String), QgsField("featureId", QVariant.Int)])
+        relationship_layer.updateFields() # tell the vector layer to fetch changes from the provider
 
-        # Enter editing mode
-        layer.startEditing()
-        for feature in features_ref:
-            feature_dict = feature.to_dict()
-            feature_dict['geometry'] = json.loads(feature_dict['geometry'])
 
-            try:
-                # Create QGIS feature from a geoJSON object
-                qgis_feature = QgsJsonUtils.stringToFeatureList(json.dumps(feature_dict))[0]
+        # Opening JSON file
+        for site_number, file in enumerate(file_list):
+            f = open(file)
+            
+            # returns JSON object as
+            # a dictionary
+            geojson = json.load(f)
+            for geojson_layer in geojson['layers']:
+                if geojson_layer['site'] == True: layer_name = 'site'
+                else: layer_name = geojson_layer['name']
+                geometry_type = geojson_layer['contents']['features'][0]['geometry']['type']
 
-                # Set the fields of the feature to the layer's fields
-                qgis_feature.setFields(fields)
-                # Set the properties of each feature by looping through all the keys of the JSON properties
-                for key in feature_dict['properties']:
-                #    print(key, feature_dict['properties'][key])
-                    qgis_feature.setAttribute(key, feature_dict['properties'][key])
-                
-                # Add the features to the layer
-                pr.addFeatures([qgis_feature])
-                layer.commitChanges()
-            except:
-                iface.messageBar().pushMessage("Error", "Your layer contains some invalid geometries", level=2)
+                # if len(QgsProject.instance().mapLayersByName(layer_name)) != 0:
+                #     QgsProject.instance().removeMapLayers( [QgsProject.instance().mapLayersByName(layer_name)[0].id()])
+                #     iface.messageBar().pushMessage("Warning", "Some of your layers already exist in the project and were overwritten!", level=1)
 
-        # Show in project
-        QgsProject.instance().addMapLayer(layer)
-        iface.messageBar().pushMessage("Success", "Your layer has been added to the model!", level=3)
+                curr_layers = QgsProject.instance().mapLayersByName(layer_name)
+                if len(curr_layers) != 0:
+                    layer = curr_layers[0]
+                else:
+                    try: layer = QgsVectorLayer(geometry_type, layer_name, "memory")
+                    except: iface.messageBar().pushMessage("Error", "Your layer's geometry is invalid. Make sure your layer's geoemetries are vectors", level=2)
+                pr = layer.dataProvider()
+
+                crs = layer.crs()
+                crs.createFromId(int(geojson_layer['contents']['crs']['properties']['name'].split(':')[1]))
+                try: layer.setCrs(crs)
+                except: iface.messageBar().pushMessage("Error", "Your layer's EPSG code is invalid, we cannot import it!", level=2)
+
+
+
+                # add fields
+                fields = QgsJsonUtils.stringToFields(json.dumps(geojson_layer['contents']['features'][0]))
+                # try: 
+                #     curr_field = fields.field(fields.indexOf('created_da'))
+                #     print(curr_field.type(), curr_field.subType())
+                #     print(curr_field.typeName(), curr_field.constraints().constraintDescription())
+                # except: pass
+                pr.addAttributes(fields)
+                layer.updateFields() # tell the vector layer to fetch changes from the provider
+
+
+                # Enter editing mode
+                layer.startEditing()
+                for feature in geojson_layer['contents']['features']:
+                    try:
+                        # Create QGIS feature from a geoJSON object
+                        qgis_feature = QgsJsonUtils.stringToFeatureList(json.dumps(feature))[0]
+
+                        # Set the fields of the feature to the layer's fields
+                        qgis_feature.setFields(fields)
+                        # Set the properties of each feature by looping through all the keys of the JSON properties
+                        for key in feature['properties']:
+                            prop = feature['properties'][key]
+                            if type(prop) is dict: prop = json.dumps(prop)
+                            qgis_feature.setAttribute(key, prop)
+                        
+                        # Add the features to the layer
+                        (result, newFeatures) = pr.addFeatures([qgis_feature])
+                        # then we will add a new row with site_number (we need to add +1 to site number), layer_name, and featureID to the empty layer
+                        fet = QgsFeature()
+                        fet.setAttributes([site_number+1, layer_name, newFeatures[0].id()])
+                        relationship_layer_pr.addFeatures([fet])
+                        # print(site_number, newFeatures[0].id(), layer_name)
+
+                        layer.commitChanges()
+                    except:
+                        iface.messageBar().pushMessage("Error", "Your layer contains some invalid geometries", level=2)
+                layer.updateExtents()
+                relationship_layer.updateExtents()
+
+
+                # Show in project if the layer is not already in the project
+                if len(curr_layers) == 0:
+                    QgsProject.instance().addMapLayer(layer)
+                iface.messageBar().pushMessage("Success", "Your layer has been added to the model!", level=3)
+
+        QgsProject.instance().addMapLayer(relationship_layer)
+        iface.messageBar().pushMessage("Success", "Your Site Packages have been imported to the model!", level=3)
+
+    def select_folder_path(self):
+
+        filename = QFileDialog.getExistingDirectory(self.dlg, "Select you Firebase Credential JSON file")
+        print(filename, 2134234234214124)
+
+        self.dlg.folder_path.setText(filename)
 
     def run(self):
         """Run method that performs all the real work"""
@@ -261,16 +490,48 @@ class LocalSoftware:
         if self.first_start == True:
             self.first_start = False
             self.dlg = LocalSoftwareDialog()
-            self.dlg.push_button_path.clicked.connect(self.select_credential_file)
+            self.dlg.push_button_path.clicked.connect(self.select_folder_path)
+            # print(self.dlg.layer_name_label)
 
+        # Fetch the currently loaded layers
+        layers = [layer for layer in QgsProject.instance().layerTreeRoot().children() if layer.name() != 'relationship_layer']
+        # Clear the contents of the comboBox from previous runs
+        self.dlg.comboBox.clear()
+        # Populate the comboBox with names of all the loaded layers
+        self.dlg.comboBox.addItems([layer.name() for layer in layers])
 
-
+        # Clear the contents of the comboBox from previous runs
+        self.dlg.units.clear()
+        # Populate the comboBox with names of all the loaded layers
+        self.dlg.units.addItems(['mts', 'ft'])
 
         # show the dialog
         self.dlg.show()
         # Run the dialog event loop
         result = self.dlg.exec_()
+
+        data_folder = self.dlg.folder_path.text()
+
         # See if OK was pressed
-        if result:
-            db = self.firebase_connect(self.dlg.credential_path.text())
-            self.load_features(db)
+        if result and data_folder != '':
+            
+            radius = int(self.dlg.radius.text())
+
+            selected_unit_index = self.dlg.units.currentIndex()
+            unit_name = ['mt','ft'][selected_unit_index]
+            if unit_name == 'ft': radius *= 0.3048
+
+            if self.dlg.import_sites.isChecked():
+                file_list = glob.glob(data_folder+"/*.json") #2
+                self.batch_import(file_list)
+
+            elif self.dlg.export_sites.isChecked():
+                if radius != 0: self.batch_export(data_folder, radius)
+                else: self.batch_export(data_folder)
+
+            elif self.dlg.package_sites.isChecked():
+                selectedLayerIndex = self.dlg.comboBox.currentIndex()
+                site_name = layers[selectedLayerIndex].layer().name()
+                self.make_sites(site_name, data_folder, radius)
+
+        # TODO: Need to deal with getting the data types figured out so that things can be exported as numbers
