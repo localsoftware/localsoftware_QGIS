@@ -1,2 +1,2 @@
 # localsoftware_QGIS
-QGIS Plugin for Local Software. Fetches a layer from firebase and imports it into QGIS
+QGIS Plugin for Local Software. Imports, exports, or makes a set of site packages into QGIS
