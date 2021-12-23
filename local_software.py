@@ -425,9 +425,13 @@ class LocalSoftware:
                 except: iface.messageBar().pushMessage("Error", "Your layer's EPSG code is invalid, we cannot import it!", level=2)
 
 
-
                 # add fields
-                fields = QgsJsonUtils.stringToFields(json.dumps(geojson_layer['contents']['features'][0]))
+                try:
+                    fields = QgsJsonUtils.stringToFields(json.dumps(geojson_layer['contents']['features'][0]))
+                    pr.addAttributes(fields)
+                    layer.updateFields() # tell the vector layer to fetch changes from the provider
+                except: pass
+
                 # try: 
                 #     curr_field = fields.field(fields.indexOf('created_da'))
                 #     print(curr_field.type(), curr_field.subType())
@@ -447,10 +451,19 @@ class LocalSoftware:
                         # Set the fields of the feature to the layer's fields
                         qgis_feature.setFields(fields)
                         # Set the properties of each feature by looping through all the keys of the JSON properties
-                        for key in feature['properties']:
-                            prop = feature['properties'][key]
-                            if type(prop) is dict: prop = json.dumps(prop)
-                            qgis_feature.setAttribute(key, prop)
+                        try:
+                            for key in feature['properties']:
+                                prop = feature['properties'][key]
+                                if type(prop) is dict: prop = json.dumps(prop)
+                                qgis_feature.setAttribute(key, prop)
+                            #    print(key, feature_dict['properties'][key])
+                        except: pass
+
+                        # # Set the properties of each feature by looping through all the keys of the JSON properties
+                        # for key in feature['properties']:
+                        #     prop = feature['properties'][key]
+                        #     if type(prop) is dict: prop = json.dumps(prop)
+                        #     qgis_feature.setAttribute(key, prop)
                         
                         # Add the features to the layer
                         (result, newFeatures) = pr.addFeatures([qgis_feature])
