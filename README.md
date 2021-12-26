@@ -17,6 +17,6 @@ Local Software is a set of software packages to connect GIS and CAD software sea
 3. Now, go to `All` in the sidebar and search for `Local Software`. Select the plugin and click `Install Plugin`
 
 ## Documentation
-How do I use Local Software for Grasshopper? Check out [these](https://beta.uselocalco.de/documentation) tutorials.
-How do I use the QGIS plugin? Check out [this](https://canvas.mit.edu/courses/14233) course that we taugh at MIT.
-How do I create site packages without QGIS? Check out the Local Software [web application](https://beta.uselocalco.de/).
+* How do I use Local Software for Grasshopper? Check out [these](https://beta.uselocalco.de/documentation) tutorials.
+* How do I use the QGIS plugin? Check out [this](https://canvas.mit.edu/courses/14233) course that we taugh at MIT.
+* How do I create site packages without QGIS? Check out the Local Software [web application](https://beta.uselocalco.de/).
