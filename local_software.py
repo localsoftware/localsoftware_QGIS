@@ -25,6 +25,7 @@ from pathlib import Path
 import json
 import glob
 from collections import OrderedDict
+import numbers
 
 from qgis.core import QgsVectorLayer, QgsProject, QgsJsonUtils, QgsFeature, QgsField, QgsCoordinateTransform, QgsFeatureRequest, QgsCoordinateReferenceSystem, QgsGeometry, QgsMessageLog
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QVariant
@@ -239,7 +240,8 @@ class LocalSoftware:
             curr_props = []
             for ix, val in enumerate(i.attributes()):
                 if ix < len(fields):
-                    curr_props.append((fields[ix], str(val)))
+                    if not isinstance(val, numbers.Number): curr_props.append((fields[ix], str(val)))
+                    else: curr_props.append((fields[ix], val))
             prop_dict = OrderedDict(curr_props)
             features.append(
                 {
