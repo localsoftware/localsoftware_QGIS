@@ -405,87 +405,88 @@ class LocalSoftware:
             # a dictionary
             geojson = json.load(f)
             for geojson_layer in geojson['layers']:
-                if geojson_layer['site'] == True: layer_name = 'site'
-                else: layer_name = geojson_layer['name']
-                geometry_type = geojson_layer['contents']['features'][0]['geometry']['type']
+                if len(geojson_layer['contents']['features']) > 0:
+                    if geojson_layer['site'] == True: layer_name = 'site'
+                    else: layer_name = geojson_layer['name']
+                    geometry_type = geojson_layer['contents']['features'][0]['geometry']['type']
 
-                # if len(QgsProject.instance().mapLayersByName(layer_name)) != 0:
-                #     QgsProject.instance().removeMapLayers( [QgsProject.instance().mapLayersByName(layer_name)[0].id()])
-                #     iface.messageBar().pushMessage("Warning", "Some of your layers already exist in the project and were overwritten!", level=1)
+                    # if len(QgsProject.instance().mapLayersByName(layer_name)) != 0:
+                    #     QgsProject.instance().removeMapLayers( [QgsProject.instance().mapLayersByName(layer_name)[0].id()])
+                    #     iface.messageBar().pushMessage("Warning", "Some of your layers already exist in the project and were overwritten!", level=1)
 
-                curr_layers = QgsProject.instance().mapLayersByName(layer_name)
-                if len(curr_layers) != 0:
-                    layer = curr_layers[0]
-                else:
-                    try: layer = QgsVectorLayer(geometry_type, layer_name, "memory")
-                    except: iface.messageBar().pushMessage("Error", "Your layer's geometry is invalid. Make sure your layer's geoemetries are vectors", level=2)
-                pr = layer.dataProvider()
+                    curr_layers = QgsProject.instance().mapLayersByName(layer_name)
+                    if len(curr_layers) != 0:
+                        layer = curr_layers[0]
+                    else:
+                        try: layer = QgsVectorLayer(geometry_type, layer_name, "memory")
+                        except: iface.messageBar().pushMessage("Error", "Your layer's geometry is invalid. Make sure your layer's geoemetries are vectors", level=2)
+                    pr = layer.dataProvider()
 
-                crs = layer.crs()
-                crs.createFromId(int(geojson_layer['contents']['crs']['properties']['name'].split(':')[1]))
-                try: layer.setCrs(crs)
-                except: iface.messageBar().pushMessage("Error", "Your layer's EPSG code is invalid, we cannot import it!", level=2)
+                    crs = layer.crs()
+                    crs.createFromId(int(geojson_layer['contents']['crs']['properties']['name'].split(':')[1]))
+                    try: layer.setCrs(crs)
+                    except: iface.messageBar().pushMessage("Error", "Your layer's EPSG code is invalid, we cannot import it!", level=2)
 
 
-                # add fields
-                try:
-                    fields = QgsJsonUtils.stringToFields(json.dumps(geojson_layer['contents']['features'][0]))
+                    # add fields
+                    try:
+                        fields = QgsJsonUtils.stringToFields(json.dumps(geojson_layer['contents']['features'][0]))
+                        pr.addAttributes(fields)
+                        layer.updateFields() # tell the vector layer to fetch changes from the provider
+                    except: pass
+
+                    # try: 
+                    #     curr_field = fields.field(fields.indexOf('created_da'))
+                    #     print(curr_field.type(), curr_field.subType())
+                    #     print(curr_field.typeName(), curr_field.constraints().constraintDescription())
+                    # except: pass
                     pr.addAttributes(fields)
                     layer.updateFields() # tell the vector layer to fetch changes from the provider
-                except: pass
-
-                # try: 
-                #     curr_field = fields.field(fields.indexOf('created_da'))
-                #     print(curr_field.type(), curr_field.subType())
-                #     print(curr_field.typeName(), curr_field.constraints().constraintDescription())
-                # except: pass
-                pr.addAttributes(fields)
-                layer.updateFields() # tell the vector layer to fetch changes from the provider
 
 
-                # Enter editing mode
-                layer.startEditing()
-                for feature in geojson_layer['contents']['features']:
-                    try:
-                        # Create QGIS feature from a geoJSON object
-                        qgis_feature = QgsJsonUtils.stringToFeatureList(json.dumps(feature))[0]
-
-                        # Set the fields of the feature to the layer's fields
-                        qgis_feature.setFields(fields)
-                        # Set the properties of each feature by looping through all the keys of the JSON properties
+                    # Enter editing mode
+                    layer.startEditing()
+                    for feature in geojson_layer['contents']['features']:
                         try:
-                            for key in feature['properties']:
-                                prop = feature['properties'][key]
-                                if type(prop) is dict: prop = json.dumps(prop)
-                                qgis_feature.setAttribute(key, prop)
-                            #    print(key, feature_dict['properties'][key])
-                        except: pass
+                            # Create QGIS feature from a geoJSON object
+                            qgis_feature = QgsJsonUtils.stringToFeatureList(json.dumps(feature))[0]
 
-                        # # Set the properties of each feature by looping through all the keys of the JSON properties
-                        # for key in feature['properties']:
-                        #     prop = feature['properties'][key]
-                        #     if type(prop) is dict: prop = json.dumps(prop)
-                        #     qgis_feature.setAttribute(key, prop)
-                        
-                        # Add the features to the layer
-                        (result, newFeatures) = pr.addFeatures([qgis_feature])
-                        # then we will add a new row with site_number (we need to add +1 to site number), layer_name, and featureID to the empty layer
-                        fet = QgsFeature()
-                        fet.setAttributes([site_number+1, layer_name, newFeatures[0].id()])
-                        relationship_layer_pr.addFeatures([fet])
-                        # print(site_number, newFeatures[0].id(), layer_name)
+                            # Set the fields of the feature to the layer's fields
+                            qgis_feature.setFields(fields)
+                            # Set the properties of each feature by looping through all the keys of the JSON properties
+                            try:
+                                for key in feature['properties']:
+                                    prop = feature['properties'][key]
+                                    if type(prop) is dict: prop = json.dumps(prop)
+                                    qgis_feature.setAttribute(key, prop)
+                                #    print(key, feature_dict['properties'][key])
+                            except: pass
 
-                        layer.commitChanges()
-                    except:
-                        iface.messageBar().pushMessage("Error", "Your layer contains some invalid geometries", level=2)
-                layer.updateExtents()
-                relationship_layer.updateExtents()
+                            # # Set the properties of each feature by looping through all the keys of the JSON properties
+                            # for key in feature['properties']:
+                            #     prop = feature['properties'][key]
+                            #     if type(prop) is dict: prop = json.dumps(prop)
+                            #     qgis_feature.setAttribute(key, prop)
+                            
+                            # Add the features to the layer
+                            (result, newFeatures) = pr.addFeatures([qgis_feature])
+                            # then we will add a new row with site_number (we need to add +1 to site number), layer_name, and featureID to the empty layer
+                            fet = QgsFeature()
+                            fet.setAttributes([site_number+1, layer_name, newFeatures[0].id()])
+                            relationship_layer_pr.addFeatures([fet])
+                            # print(site_number, newFeatures[0].id(), layer_name)
+
+                            layer.commitChanges()
+                        except:
+                            iface.messageBar().pushMessage("Error", "Your layer contains some invalid geometries", level=2)
+                    layer.updateExtents()
+                    relationship_layer.updateExtents()
 
 
-                # Show in project if the layer is not already in the project
-                if len(curr_layers) == 0:
-                    QgsProject.instance().addMapLayer(layer)
-                iface.messageBar().pushMessage("Success", "Your layer has been added to the model!", level=3)
+                    # Show in project if the layer is not already in the project
+                    if len(curr_layers) == 0:
+                        QgsProject.instance().addMapLayer(layer)
+                    iface.messageBar().pushMessage("Success", "Your layer has been added to the model!", level=3)
 
         QgsProject.instance().addMapLayer(relationship_layer)
         iface.messageBar().pushMessage("Success", "Your Site Packages have been imported to the model!", level=3)
