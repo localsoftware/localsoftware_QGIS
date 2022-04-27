@@ -43,9 +43,6 @@ from .resources import *
 from .local_software_dialog import LocalSoftwareDialog
 import os.path
 
-# Import Firebase libraries
-import firebase_admin
-from firebase_admin import credentials, firestore
 
 
 class LocalSoftware:
