@@ -3,10 +3,10 @@
 # This file should be included when you package your plugin.# Mandatory items:
 
 [general]
-name=LocalSoftware
+name=LocalSoftware-QGIS
 qgisMinimumVersion=3.0
 description=Connecting CAD and GIS software
-version=0.1
+version=0.2
 author=LocalSoftware
 email=csandova@mit.edu
 

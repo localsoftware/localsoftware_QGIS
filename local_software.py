@@ -491,9 +491,16 @@ class LocalSoftware:
     def select_folder_path(self):
 
         filename = QFileDialog.getExistingDirectory(self.dlg, "Select you Firebase Credential JSON file")
-        print(filename, 2134234234214124)
 
-        self.dlg.folder_path.setText(filename)
+        if self.dlg.tabWidget.currentIndex() == 0:
+            self.dlg.folder_path_2.setText(filename)
+        if self.dlg.tabWidget.currentIndex() == 1:
+            self.dlg.folder_path_3.setText(filename)
+        if self.dlg.tabWidget.currentIndex() == 2:
+            self.dlg.folder_path_4.setText(filename)
+
+    def push_warning(self, warning_text):
+        iface.messageBar().pushMessage("Error", warning_text, level=2)
 
     def run(self):
         """Run method that performs all the real work"""
@@ -503,48 +510,78 @@ class LocalSoftware:
         if self.first_start == True:
             self.first_start = False
             self.dlg = LocalSoftwareDialog()
-            self.dlg.push_button_path.clicked.connect(self.select_folder_path)
+            self.dlg.push_button_path_2.clicked.connect(self.select_folder_path)
+            self.dlg.push_button_path_3.clicked.connect(self.select_folder_path)
+            self.dlg.push_button_path_4.clicked.connect(self.select_folder_path)
             # print(self.dlg.layer_name_label)
 
         # Fetch the currently loaded layers
         layers = [layer for layer in QgsProject.instance().layerTreeRoot().children() if layer.name() != 'relationship_layer']
         # Clear the contents of the comboBox from previous runs
-        self.dlg.comboBox.clear()
+        self.dlg.comboBox_2.clear()
         # Populate the comboBox with names of all the loaded layers
-        self.dlg.comboBox.addItems([layer.name() for layer in layers])
+        self.dlg.comboBox_2.addItems([layer.name() for layer in layers])
 
         # Clear the contents of the comboBox from previous runs
-        self.dlg.units.clear()
+        self.dlg.units_2.clear()
         # Populate the comboBox with names of all the loaded layers
-        self.dlg.units.addItems(['mts', 'ft'])
+        self.dlg.units_2.addItems(['mts', 'ft'])
+
+        self.dlg.units_3.clear()
+        # Populate the comboBox with names of all the loaded layers
+        self.dlg.units_3.addItems(['mts', 'ft'])
 
         # show the dialog
         self.dlg.show()
         # Run the dialog event loop
         result = self.dlg.exec_()
 
-        data_folder = self.dlg.folder_path.text()
+        # Package Sites
+        if self.dlg.tabWidget.currentIndex() == 0:
+            data_folder = self.dlg.folder_path_2.text()
+            if (result and data_folder != '') and len(layers) > 0:
+                package_radius = int(self.dlg.radius_2.text())
 
-        # See if OK was pressed
-        if result and data_folder != '':
-            
-            radius = int(self.dlg.radius.text())
+                package_selected_unit_index = self.dlg.units_2.currentIndex()
+                package_unit_name = ['mt','ft'][package_selected_unit_index]
+                if package_unit_name == 'ft': package_radius *= 0.3048
 
-            selected_unit_index = self.dlg.units.currentIndex()
-            unit_name = ['mt','ft'][selected_unit_index]
-            if unit_name == 'ft': radius *= 0.3048
-
-            if self.dlg.import_sites.isChecked():
-                file_list = glob.glob(data_folder+"/*.json") #2
-                self.batch_import(file_list)
-
-            elif self.dlg.export_sites.isChecked():
-                if radius != 0: self.batch_export(data_folder, radius)
-                else: self.batch_export(data_folder)
-
-            elif self.dlg.package_sites.isChecked():
-                selectedLayerIndex = self.dlg.comboBox.currentIndex()
+                selectedLayerIndex = self.dlg.comboBox_2.currentIndex()
                 site_name = layers[selectedLayerIndex].layer().name()
-                self.make_sites(site_name, data_folder, radius)
+                self.make_sites(site_name, data_folder, package_radius)
+            elif data_folder == '' and len(layers) == 0:
+                self.push_warning('Please select an output folder and add layers to your model')
+            elif data_folder == '':
+                self.push_warning('Please select an output folder')
+            elif len(layers) == 0:
+                self.push_warning("Your model doesn't have any layers, please add at least one layer")
 
-        # TODO: Need to deal with getting the data types figured out so that things can be exported as numbers
+        # Import Sites
+        elif self.dlg.tabWidget.currentIndex() == 1:
+            data_folder = self.dlg.folder_path_3.text()
+            if result and data_folder != '':
+                file_list = glob.glob(data_folder+"/*.json") #2
+                self.batch_import(file_list)   
+            elif data_folder == '':
+                self.push_warning('Please select an output folder')
+
+        # Export Sites
+        elif self.dlg.tabWidget.currentIndex() == 2:
+            data_folder = self.dlg.folder_path_4.text()
+            if result and data_folder != '':
+                export_radius = int(self.dlg.radius_3.text())
+
+                export_selected_unit_index = self.dlg.units_3.currentIndex()
+                export_unit_name = ['mt','ft'][export_selected_unit_index]
+                if export_unit_name == 'ft': export_radius *= 0.3048
+
+                if export_radius != 0: self.batch_export(data_folder, export_radius)
+                else: self.batch_export(data_folder)
+            elif data_folder == '':
+                self.push_warning('Please select an output folder')
+
+        self.dlg.folder_path_2.clear()
+        self.dlg.folder_path_3.clear()
+        self.dlg.folder_path_4.clear()
+        self.dlg.radius_2.clear()
+        self.dlg.radius_3.clear()

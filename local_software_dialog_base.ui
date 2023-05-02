@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>400</width>
-    <height>228</height>
+    <height>196</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -16,8 +16,8 @@
   <widget class="QDialogButtonBox" name="button_box">
    <property name="geometry">
     <rect>
-     <x>30</x>
-     <y>180</y>
+     <x>40</x>
+     <y>160</y>
      <width>341</width>
      <height>32</height>
     </rect>
@@ -29,158 +29,242 @@
     <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
    </property>
   </widget>
-  <widget class="QLineEdit" name="folder_path">
+  <widget class="QTabWidget" name="tabWidget">
    <property name="geometry">
     <rect>
-     <x>130</x>
-     <y>70</y>
-     <width>191</width>
-     <height>21</height>
+     <x>0</x>
+     <y>10</y>
+     <width>401</width>
+     <height>151</height>
     </rect>
    </property>
-  </widget>
-  <widget class="QLabel" name="credential_path_label">
-   <property name="geometry">
-    <rect>
-     <x>20</x>
-     <y>65</y>
-     <width>92</width>
-     <height>31</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>Folder Path</string>
-   </property>
-  </widget>
-  <widget class="QLabel" name="label_2">
-   <property name="geometry">
-    <rect>
-     <x>20</x>
-     <y>100</y>
-     <width>92</width>
-     <height>41</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>Site Layer</string>
-   </property>
-  </widget>
-  <widget class="QLabel" name="label_3">
-   <property name="geometry">
-    <rect>
-     <x>120</x>
-     <y>5</y>
-     <width>181</width>
-     <height>31</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>QGIS / Local Software</string>
-   </property>
-  </widget>
-  <widget class="QPushButton" name="push_button_path">
-   <property name="geometry">
-    <rect>
-     <x>330</x>
-     <y>70</y>
-     <width>51</width>
-     <height>21</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>...</string>
-   </property>
-  </widget>
-  <widget class="QRadioButton" name="package_sites">
-   <property name="geometry">
-    <rect>
-     <x>20</x>
-     <y>40</y>
-     <width>111</width>
-     <height>20</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>Package Sites</string>
-   </property>
-   <property name="checked">
-    <bool>true</bool>
-   </property>
-  </widget>
-  <widget class="QRadioButton" name="import_sites">
-   <property name="geometry">
-    <rect>
-     <x>150</x>
-     <y>40</y>
-     <width>111</width>
-     <height>20</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>Import Sites</string>
-   </property>
-  </widget>
-  <widget class="QRadioButton" name="export_sites">
-   <property name="geometry">
-    <rect>
-     <x>270</x>
-     <y>40</y>
-     <width>111</width>
-     <height>20</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>Export Sites</string>
-   </property>
-  </widget>
-  <widget class="QComboBox" name="comboBox">
-   <property name="geometry">
-    <rect>
-     <x>130</x>
-     <y>110</y>
-     <width>251</width>
-     <height>21</height>
-    </rect>
-   </property>
-  </widget>
-  <widget class="QSpinBox" name="radius">
-   <property name="geometry">
-    <rect>
-     <x>130</x>
-     <y>150</y>
-     <width>191</width>
-     <height>22</height>
-    </rect>
-   </property>
-   <property name="maximum">
-    <number>1000</number>
-   </property>
-   <property name="value">
+   <property name="currentIndex">
     <number>0</number>
    </property>
-  </widget>
-  <widget class="QComboBox" name="units">
-   <property name="geometry">
-    <rect>
-     <x>330</x>
-     <y>150</y>
-     <width>51</width>
-     <height>21</height>
-    </rect>
-   </property>
-  </widget>
-  <widget class="QLabel" name="label_4">
-   <property name="geometry">
-    <rect>
-     <x>20</x>
-     <y>140</y>
-     <width>92</width>
-     <height>41</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>Site Radius</string>
-   </property>
+   <widget class="QWidget" name="packagesites_tab">
+    <attribute name="title">
+     <string>Package Sites</string>
+    </attribute>
+    <widget class="QComboBox" name="units_2">
+     <property name="geometry">
+      <rect>
+       <x>330</x>
+       <y>50</y>
+       <width>51</width>
+       <height>21</height>
+      </rect>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_5">
+     <property name="geometry">
+      <rect>
+       <x>20</x>
+       <y>40</y>
+       <width>92</width>
+       <height>41</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Site Radius</string>
+     </property>
+    </widget>
+    <widget class="QSpinBox" name="radius_2">
+     <property name="geometry">
+      <rect>
+       <x>130</x>
+       <y>50</y>
+       <width>191</width>
+       <height>22</height>
+      </rect>
+     </property>
+     <property name="maximum">
+      <number>1000</number>
+     </property>
+     <property name="value">
+      <number>0</number>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_6">
+     <property name="geometry">
+      <rect>
+       <x>20</x>
+       <y>80</y>
+       <width>92</width>
+       <height>41</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Site Layer</string>
+     </property>
+    </widget>
+    <widget class="QComboBox" name="comboBox_2">
+     <property name="geometry">
+      <rect>
+       <x>130</x>
+       <y>90</y>
+       <width>251</width>
+       <height>21</height>
+      </rect>
+     </property>
+    </widget>
+    <widget class="QLineEdit" name="folder_path_2">
+     <property name="geometry">
+      <rect>
+       <x>130</x>
+       <y>10</y>
+       <width>191</width>
+       <height>21</height>
+      </rect>
+     </property>
+    </widget>
+    <widget class="QLabel" name="credential_path_label_2">
+     <property name="geometry">
+      <rect>
+       <x>20</x>
+       <y>5</y>
+       <width>92</width>
+       <height>31</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Folder Path</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="push_button_path_2">
+     <property name="geometry">
+      <rect>
+       <x>330</x>
+       <y>10</y>
+       <width>51</width>
+       <height>21</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>...</string>
+     </property>
+    </widget>
+   </widget>
+   <widget class="QWidget" name="importsites_tab">
+    <attribute name="title">
+     <string>Import Sites</string>
+    </attribute>
+    <widget class="QLineEdit" name="folder_path_3">
+     <property name="geometry">
+      <rect>
+       <x>130</x>
+       <y>10</y>
+       <width>191</width>
+       <height>21</height>
+      </rect>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="push_button_path_3">
+     <property name="geometry">
+      <rect>
+       <x>330</x>
+       <y>10</y>
+       <width>51</width>
+       <height>21</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>...</string>
+     </property>
+    </widget>
+    <widget class="QLabel" name="credential_path_label_3">
+     <property name="geometry">
+      <rect>
+       <x>20</x>
+       <y>5</y>
+       <width>92</width>
+       <height>31</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Folder Path</string>
+     </property>
+    </widget>
+   </widget>
+   <widget class="QWidget" name="exportsites_tab">
+    <attribute name="title">
+     <string>Export Sites</string>
+    </attribute>
+    <widget class="QLabel" name="label_7">
+     <property name="geometry">
+      <rect>
+       <x>20</x>
+       <y>40</y>
+       <width>92</width>
+       <height>41</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Site Radius</string>
+     </property>
+    </widget>
+    <widget class="QSpinBox" name="radius_3">
+     <property name="geometry">
+      <rect>
+       <x>130</x>
+       <y>50</y>
+       <width>191</width>
+       <height>22</height>
+      </rect>
+     </property>
+     <property name="maximum">
+      <number>1000</number>
+     </property>
+     <property name="value">
+      <number>0</number>
+     </property>
+    </widget>
+    <widget class="QComboBox" name="units_3">
+     <property name="geometry">
+      <rect>
+       <x>330</x>
+       <y>50</y>
+       <width>51</width>
+       <height>21</height>
+      </rect>
+     </property>
+    </widget>
+    <widget class="QLineEdit" name="folder_path_4">
+     <property name="geometry">
+      <rect>
+       <x>130</x>
+       <y>10</y>
+       <width>191</width>
+       <height>21</height>
+      </rect>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="push_button_path_4">
+     <property name="geometry">
+      <rect>
+       <x>330</x>
+       <y>10</y>
+       <width>51</width>
+       <height>21</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>...</string>
+     </property>
+    </widget>
+    <widget class="QLabel" name="credential_path_label_4">
+     <property name="geometry">
+      <rect>
+       <x>20</x>
+       <y>5</y>
+       <width>92</width>
+       <height>31</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Folder Path</string>
+     </property>
+    </widget>
+   </widget>
   </widget>
  </widget>
  <resources/>
