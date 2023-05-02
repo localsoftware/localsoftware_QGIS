@@ -6,7 +6,7 @@
 name=LocalSoftware-QGIS
 qgisMinimumVersion=3.0
 description=Connecting CAD and GIS software
-version=0.2
+version=0.4
 author=LocalSoftware
 email=csandova@mit.edu
 
